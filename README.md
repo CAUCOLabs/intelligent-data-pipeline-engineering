@@ -4,198 +4,182 @@
 
 ### Secure by Design · Efficient by Architecture · AI-Assisted by Purpose
 
-**An independent architecture study for trustworthy data engineering in regulated environments.**
+**An independent architecture proposal for evidence-grounded pipeline diagnostics in regulated data environments.**
 
-[Architecture](#architecture-overview) · [Principles](#design-principles) · [Security](#security-boundaries) · [Evaluation](#evaluation-framework) · [Roadmap](#research-roadmap)
+![Status](https://img.shields.io/badge/status-conceptual_study-2563eb?style=flat-square) ![Approach](https://img.shields.io/badge/approach-platform--native_first-0f766e?style=flat-square) ![AI](https://img.shields.io/badge/AI-read--only_advisory-7c3aed?style=flat-square)
 
-![Status](https://img.shields.io/badge/status-conceptual_research-2563eb?style=flat-square) ![Scope](https://img.shields.io/badge/scope-documentation_only-64748b?style=flat-square) ![AI](https://img.shields.io/badge/AI-advisory_only-059669?style=flat-square)
+[Overview](#executive-summary) · [Architecture](#reference-architecture) · [Scenario](#illustrative-incident) · [Existing tools](#what-already-exists--what-remains-to-be-proven) · [Safety](#security-and-efficiency) · [Next steps](#research-and-validation-plan)
 
 </div>
 
-> [!IMPORTANT]
-> **Conceptual proposal—not a deployed product.** This independent study is not affiliated with or endorsed by HUS. It does not describe HUS's internal architecture, use patient data, or claim validated performance results. No implementation is planned as part of this repository.
+> [!NOTE]
+> **Independent conceptual study, not an HUS project.** This proposal does not describe HUS's internal systems, assert that HUS has an unmet need, or claim an implemented solution. No patient data is used. A synthetic-data prototype is a *possible future step*, not a completed deliverable.
 
----
+## Executive summary
 
-## The idea in 60 seconds
+Modern data platforms already support ingestion, transformations, quality checks, monitoring, and governance. This study asks whether an **optional, read-only diagnostic assistant** could help engineers connect evidence across related pipeline incidents. **Deterministic controls remain authoritative; AI never sits in the critical processing path.** The design prioritizes security and efficiency together and evaluates platform-native capabilities before proposing custom software. **The incremental value of AI remains unproven** and must be tested against a non-AI baseline.
 
-Data platforms already provide ingestion, transformation, quality controls, monitoring, lineage, and governance. Rather than replacing them with AI, this study explores a narrower question:
+> **Decision principle:** If existing tools solve the problem adequately—or AI cannot demonstrate measurable benefit without weakening controls—**do not add the AI component**.
 
-**Can an isolated, evidence-grounded AI assistant make data-pipeline incidents easier to investigate without compromising security, integrity, availability, or efficiency?**
+## Reference architecture
 
-The proposed assistant is an **optional advisory sidecar**. Existing deterministic checks remain authoritative. It reads permitted operational evidence, explains anomalies, and suggests verification steps for engineers. It does **not** modify clinical records, rewrite pipelines, or authorize remediation.
-
-> **Design thesis:** Use mature platform capabilities first. Introduce AI only when its measured benefit exceeds its cost, risk, and complexity.
-
-## Architecture overview
-
-The diagram distinguishes the **critical data plane** from the **optional advisory plane**. This is a reference concept, **not** a map of any real hospital deployment.
+This is a **technology-agnostic reference architecture**, not a diagram of an actual hospital deployment. Solid arrows represent data processing; dashed arrows represent operational evidence or human-approved feedback.
 
 ```mermaid
 flowchart TB
-  subgraph SOURCES["AUTHORIZED DATA SOURCES"]
-    S1["Operational systems"]
-    S2["Other approved sources"]
+  subgraph S["Authorized sources"]
+    SRC["Source systems"]
   end
-
-  subgraph DATA["DATA PLANE · conventional engineering"]
-    I["Controlled ingestion"] --> Q["Deterministic quality gates"]
-    Q --> T["SQL / Python / Spark transformations"]
-    T --> A["Governed analytical datasets"]
-    T -. "validated mapping, if applicable" .-> OM["OMOP-aligned data model"]
+  subgraph P["Critical data path · deterministic"]
+    ING["Ingest"] --> VAL["Quality gates"]
+    VAL --> TR["Transform"]
+    TR --> OUT["Governed outputs"]
+    TR --> OM["OMOP target<br/>when applicable"]
   end
-
-  S1 --> I
-  S2 --> I
-
-  subgraph CONTROL["PLATFORM OBSERVABILITY & GOVERNANCE"]
-    E["Events · metrics · lineage"]
-    G["Identity · permissions · audit"]
+  subgraph O["Existing platform controls"]
+    OBS["Logs and metrics"]
+    GOV["Access and audit"]
   end
-
-  I -. telemetry .-> E
-  Q -. test results .-> E
-  T -. execution logs .-> E
-
-  subgraph ADVISORY["PROPOSED OPTIONAL AI SIDECAR"]
-    F["Evidence filtering & minimization"] --> D["Bounded diagnostic assistant"]
-    D --> R["Evidence-linked incident report"]
-    R --> H["Human engineering review"]
+  subgraph A["Proposed advisory path · optional"]
+    MIN["Filter evidence"] --> AI["Diagnostic assistant"]
+    AI --> REP["Cited hypotheses"]
+    REP --> REV["Engineer review"]
   end
-
-  E --> F
-  G -. "policy enforcement" .-> F
-  G -. "access control" .-> D
-  H -. "approved changes via existing workflows" .-> DATA
-
-  classDef proposed fill:#dbeafe,stroke:#2563eb,color:#0f172a,stroke-width:2px;
-  classDef guard fill:#dcfce7,stroke:#15803d,color:#052e16;
-  classDef result fill:#f1f5f9,stroke:#64748b,color:#0f172a;
-  class F,D,R,H proposed;
-  class Q,G guard;
-  class A,OM result;
+  SRC --> ING
+  ING -.-> OBS
+  VAL -.-> OBS
+  TR -.-> OBS
+  OBS -.-> MIN
+  GOV -.-> MIN
+  REV -.-> DEC["Approved change<br/>via normal process"]
+  classDef data fill:#e0f2fe,stroke:#0369a1,color:#082f49;
+  classDef control fill:#dcfce7,stroke:#15803d,color:#052e16;
+  classDef advisory fill:#f3e8ff,stroke:#7e22ce,color:#3b0764;
+  class ING,VAL,TR,OUT,OM data;
+  class OBS,GOV control;
+  class MIN,AI,REP,REV advisory;
 ```
 
-**Important distinctions:** The assistant is outside the critical processing path. If it fails, approved data workflows remain governed by their normal controls. A failed mandatory quality check must **not** be bypassed. **OMOP is a common data model used as a transformation target**, not an operational source equivalent to a patient record system.
+**Architecture rules:**
 
-### Responsibility matrix
-
-| Component | Primary responsibility | AI authority |
-|---|---|---|
-| Data pipelines | Ingest, validate, transform, publish | None required |
-| Platform controls | Quality, lineage, permissions, auditing | None required |
-| Diagnostic sidecar | Summarize evidence, propose hypotheses | Read-only and advisory |
-| Human review | Validate diagnoses and approve changes | Final decision remains with authorized staff |
-
-## Design principles
-
-| Principle | Architectural implication |
-|---|---|
-| **Security × efficiency** | Optimize performance within mandatory security constraints; measure both. |
-| **Platform-native first** | Evaluate existing Azure/Databricks features before proposing custom components. |
-| **Deterministic by default** | Use testable rules for schema, completeness, freshness, reconciliation, and integrity. |
-| **No critical-path AI** | Inference must not block essential ingestion or bypass quality controls. |
-| **Least privilege** | Prefer authorized metrics, metadata, and sanitized logs over raw records. |
-| **Evidence over confidence** | Separate observed facts, possible causes, and recommended checks. |
-| **Human-controlled changes** | No autonomous writes to source records or production pipelines. |
-| **Falsifiable value** | Keep the simpler baseline if AI does not improve measured outcomes. |
+- The data pipeline operates without the assistant; mandatory quality gates cannot be bypassed.
+- The assistant consumes only **authorized, minimized operational evidence** and cannot write to source records or production pipelines.
+- An engineer validates conclusions and uses established change-management workflows.
+- **OMOP is a common data model that can be a transformation target**, not an operational source comparable to an electronic health record.
+- Azure, Databricks, SQL, Python, and Spark are **technologies to assess**, not a claim about any organization's actual deployment.
 
 ## Illustrative incident
 
-A scheduled pipeline usually produces approximately **100,000 records**, but its latest run produces **40,000**.
+**Scenario: three alerts, one possible upstream cause.** This is a synthetic diagnostic exercise—not a recorded incident or an AI benchmark.
 
-| Diagnostic field | Example output |
-|---|---|
-| **Observed** | Output volume dropped by 60% against the selected reference. |
-| **Possible explanations** | Late upstream delivery, schema drift, changed filtering, partial processing. |
-| **Evidence to inspect** | Source timestamps, schema versions, rejected-row counts, execution logs. |
-| **Action** | Engineer investigates; assistant performs no correction. |
+| Alert | Deterministic observation | Additional evidence to correlate |
+|---|---|---|
+| A · Volume | Fewer records arrive than expected | Delivery timestamps and upstream run history |
+| B · Schema | A downstream field becomes unexpectedly null | Source schema versions and column mappings |
+| C · Execution | A dependent transformation fails | Job dependencies and error logs |
 
-*This is a hypothetical example, not a measured result or a claim about HUS.*
+**Known scenario cause (synthetic):** An upstream schema change was deployed shortly before a delayed delivery; downstream jobs used an older mapping. A simple rule can flag each symptom. The research question is whether a diagnostic assistant can **connect the alerts, cite the relevant evidence, distinguish fact from hypothesis, and propose safe checks** faster or more accurately than existing platform tooling and a non-AI workflow.
 
-## Security boundaries
+**Expected advisory output:**
+
+1. **Observed:** Three correlated alerts occurred within the same delivery window.
+2. **Hypothesis:** A schema change plus delayed delivery may explain the cascade.
+3. **Evidence:** Specific log entries, timestamps, dependency edges, and schema-version differences.
+4. **Verification:** Compare source and target schemas; inspect ingestion watermark and rejected rows.
+5. **Authority:** Human engineer decides; no automated remediation.
+
+The proposed assistant has **not** been built or evaluated. This example defines a testable question, not a demonstrated result.
+
+## What already exists — what remains to be proven
+
+**We must not mistake built-in platform capabilities for an innovation opportunity.** The matrix below is a *verification plan*, not a competitive gap analysis with completed findings.
+
+| Capability | Native functionality to verify | Unresolved question |
+|---|---|---|
+| Data quality | SQL/Spark checks and managed pipeline expectations | What checks and explanations are already available? |
+| Operational telemetry | Job events, logs, metrics, dependencies | How much cross-pipeline context is accessible? |
+| Governance | Catalog, lineage, permissions, audit | Can evidence be shared safely and minimally? |
+| AI assistance | Platform-native debugging and assistant features | Does existing assistance already correlate these incidents? |
+| Incident workflow | Alerts, investigations, change controls | Is an additional advisory layer useful at all? |
+
+**Research status: OPEN.** No verified product-by-product capability gap is claimed yet. Product names, availability, edition restrictions, and feature behavior must be checked against dated primary documentation before this matrix is promoted to findings.
+
+**Primary references for that verification:** [Azure Databricks documentation](https://learn.microsoft.com/en-us/azure/databricks/), [Databricks documentation](https://docs.databricks.com/), [Apache Spark documentation](https://spark.apache.org/docs/latest/), and [OHDSI OMOP Common Data Model](https://ohdsi.github.io/CommonDataModel/). These are research starting points, **not citations proving a missing capability**.
+
+## Security and efficiency
+
+The same design decision must be evaluated against **both** security and performance requirements. Security controls are not optional trade-offs.
 
 ```mermaid
-flowchart LR
-  L["Authorized logs / metrics"] --> M["Minimize & sanitize"]
-  M --> P["Read-only AI analysis"]
-  P --> V["Evidence-linked report"]
-  V --> H["Human review"]
-  X["Raw clinical records"] -. "not granted by default" .-> M
-  P -. "no direct write access" .-> Y["Production pipelines / source records"]
+flowchart TB
+  E["Authorized telemetry"] --> F["Minimize and redact"]
+  F --> R["Read-only analysis"]
+  R --> C["Evidence-linked report"]
+  C --> H["Human review"]
+  H --> W["Normal change workflow"]
+  B["Protected source data"] -. "No default access" .-> F
+  R -. "No direct writes" .-> W
   classDef safe fill:#dcfce7,stroke:#15803d,color:#052e16;
   classDef restricted fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d;
-  class M,H safe;
-  class X,Y restricted;
+  class F,H safe;
+  class B restricted;
 ```
 
-Key risks include sensitive-data exposure, unsupported diagnoses, prompt injection via log content, privilege escalation, audit gaps, and inference outages. Proposed safeguards include input minimization, policy-enforced access, treating retrieved content as untrusted, no production write permissions, traceable evidence references, timeouts, and human approval.
+| Requirement | Proposed safeguard or evaluation |
+|---|---|
+| **Data protection** | Least privilege, sanitized logs, no raw patient data by default |
+| **Integrity** | Deterministic quality gates; no AI writes to operational data |
+| **Traceability** | Evidence references, audit logs, explicit uncertainty |
+| **Availability** | Assistant outage must not interrupt safe pipeline execution |
+| **Security testing** | Test prompt injection through logs, unauthorized access, leakage |
+| **Efficiency** | Measure end-to-end triage time, inference overhead, and cost |
 
-**Compliance is not claimed.** Any deployment in a healthcare setting would require a specific legal, privacy, security, and operational assessment under applicable EU and Finnish requirements.
+A healthcare deployment would require separate privacy, security, legal, and operational reviews. **No compliance certification is claimed.**
 
-## Existing technology: assess before building
+## Evaluation: make the hypothesis falsifiable
 
-The following are **research areas**, not assertions about what HUS has deployed or what its platform lacks.
+A future evaluation would compare **native tools and deterministic workflows alone** against **the same workflow with optional AI assistance**, using synthetic incidents with known causes.
 
-| Capability to investigate | Candidate platform features | Key question |
-|---|---|---|
-| Pipeline execution | Azure Databricks, Spark, Lakeflow | What incident evidence is already available? |
-| Quality validation | Expectations, constraints, SQL/Spark checks | Is any additional intelligence necessary? |
-| Governance | Unity Catalog access control and lineage | Can evidence be safely exposed to an assistant? |
-| Monitoring | Event logs and platform monitoring | Is diagnostic assistance already built in? |
-| AI lifecycle | Managed serving, evaluation, and governance | Would a custom sidecar be redundant? |
+| Metric | Question |
+|---|---|
+| Root-cause accuracy | Is the supported diagnosis correct? |
+| Evidence quality | Are claims tied to relevant logs, schemas, and timestamps? |
+| False explanations | Does the assistant invent unsupported causes? |
+| Engineer effort | Does it reduce end-to-end investigation time, including review? |
+| Overhead | Is added latency and compute cost justified? |
+| Safety | Are permissions and write restrictions preserved under failure? |
 
-Primary documentation to verify current capabilities: [Azure Databricks](https://learn.microsoft.com/en-us/azure/databricks/), [Databricks](https://docs.databricks.com/), and [OHDSI OMOP Common Data Model](https://ohdsi.github.io/CommonDataModel/). Product capabilities and licensing may change; documentation must be checked before drawing conclusions.
+**Reject or redesign the assistant** if it does not materially improve the baseline or introduces unacceptable operational risk.
 
-## Evaluation framework
+## Research and validation plan
 
-**No implementation or benchmark exists in this repository.** If this concept were ever evaluated, the correct comparison would be **platform-native diagnostics alone** versus **the same diagnostics plus an optional AI assistant**, using synthetic incidents.
+1. **Verify current capabilities** of Azure and Databricks using official, dated documentation.
+2. **Document findings**, separating verified behavior, inference, and open hypotheses.
+3. **Refine the synthetic incidents** to test multi-signal diagnosis rather than simple threshold alerts.
+4. **Threat-model the advisory boundary** and define safe failure behavior.
+5. **Decide whether a small prototype is justified**; implementation is not required to understand this conceptual proposal.
 
-| Dimension | Suggested measurement | Acceptance logic |
-|---|---|---|
-| Diagnostic quality | Correctness, evidence coverage, unsupported claims | Must outperform or meaningfully complement baseline |
-| Engineer efficiency | Time to understand incident, including review | Measure end-to-end, not only response speed |
-| Resource efficiency | Inference latency, compute cost per incident | Benefits must justify operational overhead |
-| Security | Access-policy tests, sensitive-data leakage tests | Mandatory controls must hold independently |
-| Resilience | Behavior when assistant is unavailable | No bypass of critical validation or approvals |
-| Maintainability | Complexity, dependencies, review burden | Reject unjustified components |
+## Longer-term research direction
 
-**Decision rule:** If the sidecar fails to demonstrate a meaningful benefit under the required security constraints, **do not add it**.
+The original exploration also considered **internal intelligence for data operations** and a **policy-governed hybrid model orchestration layer** backed by reusable operational knowledge. Those ideas are **future hypotheses**, not dependencies of the current design. They would require separate analysis of privacy, residency, vendor capabilities, cost, reliability, and authorization before any implementation.
 
-## Research roadmap
-
-1. **Verify** official Azure and Databricks capabilities and their limitations.
-2. **Identify** a specific pipeline-triage gap not already solved by native tools.
-3. **Specify** a minimal, read-only advisory interface and its evidence boundaries.
-4. **Threat-model** the design and document failure behavior.
-5. **Define** an evaluation method with a non-AI baseline.
-6. **Decide** whether a future proof of concept would be justified. **Coding is outside this repository's scope.**
-
-## Future vision — not part of the proposed baseline
-
-The original research explored two complementary ideas: **internal intelligence for data operations** and a **policy-governed hybrid orchestration layer** for approved AI services. A shared, governed knowledge layer could preserve metadata and validated operational decisions independently of any model provider.
-
-This broader architecture remains a **hypothesis for future study**. It raises additional issues of vendor controls, data residency, authorization, model equivalence, costs, and continuity. It is deliberately **not** required for the focused pipeline-diagnostics concept, and no external transfer of protected healthcare data is assumed.
-
-## Evidence discipline and limitations
+## Evidence and authorship
 
 | Label | Meaning |
 |---|---|
-| **Verified** | Supported by a specific primary source or reproducible observation |
-| **Inferred** | Reasoned interpretation, with explicit assumptions |
-| **Hypothesis** | Plausible proposal requiring verification or testing |
-| **Rejected** | Incorrect, unsafe, redundant, or unjustified option |
+| **Verified** | Supported by a primary source or reproducible test |
+| **Inferred** | Reasoned conclusion with stated assumptions |
+| **Hypothesis** | Proposal awaiting verification |
+| **Rejected** | Discarded after technical or safety review |
 
-A critical review of an earlier concept identified four important corrections incorporated here: avoid overengineering; keep the proposal aligned with **data engineering**, not generic AI architecture; represent **OMOP as a target model**, not a source system; and do not infer internal technical requirements from public procurement notices.
-
-**Limits:** No access to HUS internal systems or telemetry; no production measurements; no claim of a unique capability; no deployment, prototype, or clinical use. Public job postings and procurement material provide context only—not proof of an unmet technical need.
+This is an **independent individual research initiative published under CAUCOLabs**. CAUCOLabs is the repository namespace; this document is **not a commercial offer, an official HUS design, or a claim of access to internal hospital information**. Public job postings and procurement material can motivate research, but do not establish what an organization's internal platform lacks.
 
 ---
 
 <div align="center">
 
-### Good data engineering first. AI only when justified.
+**Good data engineering first. AI only when justified.**
 
-*Independent research · Conceptual architecture · No clinical data · No production system*
+*Conceptual architecture · Synthetic scenarios · No clinical data · No claimed deployment*
 
 </div>
