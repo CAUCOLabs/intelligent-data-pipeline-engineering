@@ -24,52 +24,53 @@
 
 ## What the platform already does
 
-Findings below come from official documentation and Databricks announcements. Several features are in **preview**, and availability varies by edition, region and workspace configuration, so each needs confirming for any specific environment.
+**Documentation verified: 2 Nov 2026.** The capabilities below are supported by the linked official documentation, not by execution tests. Preview labels apply to the specific feature or table, not the whole platform. Availability and permissions still need checking for each cloud, region and workspace; an absent preview label is not proof of general availability.
 
 | Capability | What the documentation describes | Source |
 |---|---|---|
-| **Job failure diagnosis** | The Jobs UI offers a *Diagnose Error* action powered by Databricks Assistant (Public Preview when consulted). A Databricks blog says it initially covered notebook tasks only. | [Troubleshoot job failures](https://docs.databricks.com/workflows/jobs/how-to-fix-job-failures.html), [Workflows UI blog](https://databricks.com/blog/enhanced-workflows-ui-reduces-debugging-time-and-boosts-productivity) |
-| **AI coding and debugging assistant** | Genie Code works in notebooks, the SQL editor and the Lakeflow Pipelines Editor, uses Unity Catalog metadata and lineage, and can analyse more complex errors, including environment errors. | [Genie Code](https://docs.databricks.com/genie-code) |
-| **Rule-based quality checks** | Pipeline expectations let you warn, drop or fail on violations, and emit metrics to the pipeline event log. | [Expectations](https://docs.databricks.com/delta-live-tables/expectations.html) |
-| **Pipeline observability** | The pipeline event log records audit information, data quality results, progress and lineage in a queryable Delta table. Some fields are marked as evolving, and the docs advise against building alerts on those. | [Event log schema](https://docs.azure.cn/en-us/databricks/dlt/monitor-event-log-schema) |
-| **AI-based table anomaly detection** | Data Quality Monitoring (Public Preview, announced Feb 2026, including Azure Databricks) learns historical patterns, prioritises tables using lineage, links issues to upstream jobs and pipelines, and stores results in system tables. | [Databricks blog](https://databricks.com/blog/data-quality-monitoring-scale-agentic-ai) |
-| **Lineage and system tables** | Unity Catalog lineage and system tables can be queried to relate tables, jobs and runs. | [Community discussion with examples](https://community.databricks.com/t5/data-engineering/data-quality-lineage-root-cause-analysis/m-p/165603) |
+| **Job failure diagnosis** | The Lakeflow Jobs UI offers *Diagnose Error* using Genie Code. The current page does not state preview status or a notebook-only restriction; those details remain unverified. | [Troubleshoot and repair job failures](https://learn.microsoft.com/en-us/azure/databricks/jobs/repair-job-failures) |
+| **AI coding and debugging assistant** | Current documentation uses **Genie Code** rather than the earlier Assistant wording. It works in notebooks, the SQL editor and Lakeflow Pipelines Editor, using Unity Catalog context including lineage. It can run code and perform permitted operations, so it is **not read-only by default**; model context can include data samples and cell outputs. | [Databricks Genie Code](https://docs.databricks.com/aws/en/genie-code/), [Azure Databricks Genie Code](https://learn.microsoft.com/en-us/azure/databricks/genie-code/) |
+| **Rule-based quality checks** | Lakeflow Spark Declarative Pipelines expectations can retain invalid rows with warnings, drop them, or fail an update. Warn/drop metrics can be queried in the event log; fail-on-violation does **not** record expectation metrics. | [Expectations](https://docs.databricks.com/aws/en/ldp/expectations) |
+| **Pipeline observability** | The pipeline event log is a queryable Delta table containing audit events, quality results, progress and lineage. Avoid monitoring or alerts based on `EVOLVING` or `DEPRECATED` fields. The separate regional `pipeline_events` system table is **Beta**. | [Pipeline event log](https://learn.microsoft.com/en-us/azure/databricks/ldp/monitor-event-logs), [Event log schema](https://learn.microsoft.com/en-us/azure/databricks/ldp/monitor-event-log-schema) |
+| **Data quality monitoring** | Includes data profiling and anomaly detection. Anomaly detection (**Public Preview**) models commit freshness and row-count completeness, prioritises scans by downstream usage, and uses lineage to identify likely upstream causes. Results are stored in `system.data_quality_monitoring.table_results` (**Public Preview**). | [Overview](https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/data-quality-monitoring/), [Anomaly detection](https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/data-quality-monitoring/anomaly-detection/), [Results table](https://learn.microsoft.com/en-us/azure/databricks/admin/system-tables/data-quality-monitoring) |
+| **Unity Catalog lineage** | Captures supported runtime table/column dependencies. Lineage system tables include job, pipeline and run identifiers where available, but capture only a subset of read/write events. | [Unity Catalog lineage](https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/data-lineage), [Lineage tables](https://learn.microsoft.com/en-us/azure/databricks/admin/system-tables/lineage) |
+| **System tables** | The `system` catalog provides operational history, including job/task run timelines and lineage. Access requires Unity Catalog and appropriate grants; retention, regional coverage and preview status vary by table. | [System tables reference](https://learn.microsoft.com/en-us/azure/databricks/admin/system-tables/) |
 
-**Honest reading:** my original idea of a sidecar that explains anomalies overlaps substantially with these features, especially Data Quality Monitoring with upstream root-cause pointers and the Assistant's error diagnosis. Anyone proposing an additional AI layer must show what these do not cover.
+**Inferred overlap:** my original idea of a sidecar that explains anomalies overlaps substantially with these features, especially Data Quality Monitoring with upstream root-cause pointers and Genie Code's error diagnosis. Anyone proposing an additional AI layer must show what these do not cover.
 
 ## The narrowed question
 
 What is *not* clearly covered by the documentation I reviewed, and therefore remains **open (hypothesis, not finding)**:
 
-1. **Cross-signal correlation with cited evidence.** Native tools diagnose a failed job, or flag an anomalous table. It is unclear whether any of them connects *several* signals, such as a late delivery, a schema change and a downstream failure, into one explanation that cites specific logs and schema versions and separates fact from hypothesis.
-2. **Use in a strict regulated context.** Many of the relevant features are in preview. For a healthcare organisation the practical questions are which model processes the logs, where, under which data-residency terms, with what audit trail, and whether the feature may be enabled at all.
+1. **Cross-signal correlation with cited evidence.** Native tools already diagnose failed jobs and use lineage to identify likely upstream causes of table anomalies. The remaining question is whether they adequately connect *several* signals, such as a late delivery, a schema change and a downstream failure, into one explanation that cites specific logs and schema versions and separates fact from hypothesis.
+2. **Use in a strict regulated context.** Some relevant features and system tables are in preview. For a healthcare organisation the practical questions are which model processes the logs, where, under which data-residency terms, with what audit trail, and whether the feature may be enabled at all.
 3. **Governance of the advisory output.** Whether the explanation can be made read-only, minimised, reproducible and reviewable by an engineer before anything changes.
 
 If native tools already answer 1 to 3 in a given environment, the right outcome is to use them and stop.
 
 ## Reference architecture
 
-A technology-agnostic reference design, not a map of any real deployment. Solid arrows are data processing; dashed arrows are operational evidence or human-approved feedback.
+A technology-agnostic reference design, not a map of any real deployment. **Legend:** blue = deterministic processing; green = existing platform controls; purple = proposed optional advisory steps. Solid arrows carry source/processed data; dashed arrows carry operational evidence or review handoffs. Human approval uses the established change process.
 
 ```mermaid
 flowchart TB
   subgraph S["Authorized sources"]
     SRC["Source systems"]
   end
-  subgraph P["Critical data path · deterministic"]
+  subgraph P["Deterministic data path"]
     ING["Ingest"] --> VAL["Quality gates"]
     VAL --> TR["Transform"]
     TR --> OUT["Governed outputs"]
     TR --> OM["OMOP target<br/>when applicable"]
   end
-  subgraph O["Existing platform controls"]
+  subgraph O["Platform controls (existing)"]
     OBS["Logs and metrics"]
     GOV["Access and audit"]
   end
-  subgraph A["Proposed advisory path · optional"]
-    MIN["Filter evidence"] --> AI["Diagnostic assistant"]
-    AI --> REP["Cited hypotheses"]
-    REP --> REV["Engineer review"]
+  subgraph A["Optional advisory path (proposed)"]
+    MIN["Authorize and<br/>minimize evidence"] -.-> AI["Read-only assistant"]
+    AI -.-> REP["Cited hypotheses"]
+    REP -.-> REV["Engineer review"]
   end
   SRC --> ING
   ING -.-> OBS
@@ -77,7 +78,7 @@ flowchart TB
   TR -.-> OBS
   OBS -.-> MIN
   GOV -.-> MIN
-  REV -.-> DEC["Approved change<br/>via normal process"]
+  REV -.-> DEC["Established change<br/>approval process"]
   classDef data fill:#e0f2fe,stroke:#0369a1,color:#082f49;
   classDef control fill:#dcfce7,stroke:#15803d,color:#052e16;
   classDef advisory fill:#f3e8ff,stroke:#7e22ce,color:#3b0764;
@@ -91,7 +92,7 @@ flowchart TB
 - The pipeline runs without the assistant, and mandatory quality gates can never be bypassed.
 - The assistant sees only authorized, minimized operational evidence (metrics, schema versions, sanitized logs) and has no write access to source records or production pipelines.
 - An engineer validates every conclusion and uses the normal change process.
-- OMOP is a common data model used as a **transformation target**, not an operational source comparable to a patient record system.
+- OMOP (Observational Medical Outcomes Partnership) is a common data model used as a **transformation target**, not an operational source comparable to a patient record system.
 - The advisory path could be built from native components where they fit, so the sidecar may be a thin layer or may not be needed at all.
 
 ## Illustrative incident
@@ -100,13 +101,15 @@ flowchart TB
 
 | Alert | Deterministic observation | Evidence to correlate |
 |---|---|---|
-| A · Volume | Fewer records arrive than expected | Delivery timestamps, upstream run history |
-| B · Schema | A downstream field becomes unexpectedly null | Source schema versions, column mappings |
+| A · Volume | Row count is below a configured threshold at the delivery deadline | Delivery timestamps, upstream run history |
+| B · Schema | A required field violates a configured non-null check | Source schema versions, column mappings |
 | C · Execution | A dependent transformation fails | Job dependencies, error logs |
 
-**Known cause (synthetic):** an upstream schema change shipped shortly before a delayed delivery, and downstream jobs still used the older mapping.
+**Scenario ground truth (for future evaluation):** an upstream release renamed a field and delayed delivery; a permissive mapping populated the missing old field with nulls, and a dependent transformation rejected them. This is a stipulated cause, not a demonstrated finding, and must be withheld from the investigator during evaluation.
 
-Simple rules can flag each symptom. The test is whether an assistant, compared with native tools alone, can:
+**Deterministic detection** produces the alerts above. **Evidence correlation** aligns timestamps, dependencies and schema versions; rules, queries and native tooling can do this too. **Hypothesis generation** proposes an upstream release as a possible common cause; timing alone does not prove it. **Human verification** checks the release history and mapping against the evidence before accepting or rejecting that explanation.
+
+The test is whether adding an assistant to the same native tools and deterministic workflow provides measurable benefit. It would need to:
 
 1. link the three alerts to one window and one probable cause,
 2. cite the specific log lines, timestamps and schema differences,
@@ -120,18 +123,25 @@ Security and efficiency are evaluated together; mandatory controls are not trade
 
 ```mermaid
 flowchart TB
-  E["Authorized telemetry"] --> F["Minimize and redact"]
-  F --> R["Read-only analysis"]
-  R --> C["Evidence-linked report"]
-  C --> H["Human review"]
-  H --> W["Normal change workflow"]
-  B["Protected source data"] -. "No default access" .-> F
-  R -. "No direct writes" .-> W
+  subgraph X["Outside assistant access boundary"]
+    B["Protected clinical/source data<br/>No default assistant access"]
+  end
+  E["Operational evidence<br/>potentially sensitive"] --> F["Authorize, minimize<br/>and redact"]
+  subgraph A["Assistant access boundary (proposed)"]
+    R["Read-only assistant<br/>No write permissions"]
+    C["Evidence-linked report<br/>Facts and hypotheses"]
+    R --> C
+  end
+  F -->|"Authorized evidence only"| R
+  C --> H["Human verification<br/>and review"]
+  H --> W["Established approval<br/>and change procedures"]
   classDef safe fill:#dcfce7,stroke:#15803d,color:#052e16;
   classDef restricted fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d;
   class F,H safe;
   class B restricted;
 ```
+
+Protected data has no connector to the advisory path. Operational evidence is not automatically safe: logs, schema metadata and monitoring results may contain sensitive values. Authorization and minimization must happen before assistant access, enforced through permissions and restricted evidence views rather than prompts alone.
 
 | Requirement | Safeguard or test |
 |---|---|
@@ -162,7 +172,7 @@ A fair test compares **native tools and deterministic workflows alone** with **t
 ## Next steps
 
 1. Write 3 or 4 synthetic multi-signal incidents (alerts, logs, schema versions, true cause) in a small `examples/` folder.
-2. Run the native diagnosis features on those incidents in a free or trial workspace and record exactly what they do and miss.
+2. Confirm feature availability, permissions and cost in a suitable test workspace, then run native diagnosis on synthetic incidents and record what it does and misses.
 3. Update the "narrowed question" section with the results, even if the result is "the platform already covers this."
 4. Threat-model the advisory boundary and define safe failure behavior.
 5. Decide whether a small prototype is justified.
@@ -176,11 +186,14 @@ The earlier exploration also considered internal intelligence for data operation
 | Label | Meaning |
 |---|---|
 | **Verified** | Supported by a primary source or a reproducible test |
+| **Unverified** | Claim without accessible supporting evidence; not a finding |
 | **Inferred** | Reasoned conclusion with stated assumptions |
 | **Hypothesis** | Proposal awaiting verification |
 | **Rejected** | Discarded after technical or safety review |
 
-Everything in the findings table is *verified against documentation only*, not by running the features. Preview status, naming and availability change often, so re-check before relying on it. I have no access to any organisation's internal systems or telemetry, and public job postings or procurement notices show context, not unmet needs.
+The capability descriptions in the findings table are *verified against accessible documentation only*, not by running the features. **Still unverified:** target-workspace availability; preview/GA status where the linked page gives none; and whether native tooling satisfies the full cross-signal and advisory-governance requirements. The earlier notebook-only diagnosis restriction and February 2026 launch-date claim remain unverified and are excluded from the findings. Preview status, naming and availability change often, so re-check before relying on it.
+
+I have no access to any organisation's internal systems or telemetry, and public job postings or procurement notices show context, not unmet needs.
 
 Independent individual research, published under the CAUCOLabs namespace. It is not a commercial offer or an official design of any organisation.
 
